@@ -1,0 +1,3 @@
+redis==3.5.3
+requests==2.24.0
+websocket-client==0.57.0
