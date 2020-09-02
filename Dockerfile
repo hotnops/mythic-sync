@@ -1,6 +1,10 @@
 FROM python:3.8.5-alpine3.12
 
+RUN apk add build-base
 COPY requirements.txt .
-COPY sync.py .
 RUN pip install -r requirements.txt
-CMD python sync.py
+
+COPY sync.py .
+COPY mythic.py .
+
+CMD python -u sync.py
