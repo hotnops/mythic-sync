@@ -20,12 +20,16 @@ rconn = redis.Redis(host="redis", port=6379, db=0)
 headers = {'Authorization': f"Api-Key {GHOSTWRITER_API_KEY}", "Content-Type": "application/json"}
 
 
-def mythic_response_to_ghostwriter_message(message):
+def mythic_response_to_ghostwriter_message(message) -> dict:
     gw_message = mythic_task_to_ghostwriter_message(message['task'])
-    gw_message['output'] = message['response']
-    return gw_message
+    if 'response' in message:
+        gw_message['output'] = message['response']
+        return gw_message
+    else:
+        print("[!] Could not locate response in message.")
+    return None
 
-def mythic_task_to_ghostwriter_message(message):
+def mythic_task_to_ghostwriter_message(message) -> dict:
 
     gw_message = {}
     if "status_timestamp_submitted" in message and message["status_timestamp_submitted"]:
@@ -79,9 +83,12 @@ def updateEntry(message, entry_id):
 
 
 async def handle_task(mythic, data):
-    payloads = await mythic.get_payloads()
+    try:
+        message = json.loads(data)
+    except json.JSONDecodeError as e:
+        print("[!] Failed to decode task message.")
+        return
 
-    message = json.loads(data)
     entry_id = rconn.get(message["agent_task_id"])
     if entry_id != None:
         updateEntry(message, entry_id.decode())
@@ -90,7 +97,11 @@ async def handle_task(mythic, data):
     
 async def handle_response(token, data):
 
-    message = json.loads(data)
+    try:
+        message = json.loads(data)
+    except json.JSONDecodeError as e:
+        print("[!] Failed to decode response message.")
+        return
 
     entry_id = rconn.get(message["task"]["agent_task_id"])
     if not entry_id:
@@ -125,7 +136,7 @@ async def main():
     await scripting()
     try:
         while True:
-            pending = asyncio.Task.all_tasks()
+            pending = asyncio.all_tasks()
             if len(pending) == 0:
                 exit(0)
             else:
