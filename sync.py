@@ -14,9 +14,10 @@ MYTHIC_IP = os.environ["MYTHIC_IP"]
 GHOSTWRITER_API_KEY = os.environ["GHOSTWRITER_API_KEY"]
 GHOSTWRITER_URL = os.environ["GHOSTWRITER_URL"]
 GHOSTWRITER_OPLOG_ID = os.environ["GHOSTWRITER_OPLOG_ID"]
+REDIS_HOSTNAME =os.environ["REDIS_HOSTNAME"]
 AUTH = {}
 
-rconn = redis.Redis(host="redis", port=6379, db=0)
+rconn = redis.Redis(host=REDIS_HOSTNAME, port=6379, db=0)
 headers = {'Authorization': f"Api-Key {GHOSTWRITER_API_KEY}", "Content-Type": "application/json"}
 
 
@@ -30,7 +31,6 @@ def mythic_response_to_ghostwriter_message(message) -> dict:
     return None
 
 def mythic_task_to_ghostwriter_message(message) -> dict:
-
     gw_message = {}
     if "status_timestamp_submitted" in message and message["status_timestamp_submitted"]:
         start_date = datetime.strptime(message["status_timestamp_submitted"], "%m/%d/%Y %H:%M:%S")
@@ -40,11 +40,16 @@ def mythic_task_to_ghostwriter_message(message) -> dict:
         gw_message["end_date"] = end_date.strftime("%Y-%m-%d %H:%M:%S")
     # gw_message['start_date'] = message['status_timestamp_submitted']
     # gw_message['end_date'] = message['status_timestamp_processed']
-    gw_message["user_context"] = message.get("user", "")
     gw_message["command"] = f"{message.get('command', '')} {message.get('params', '')}"
     gw_message["comments"] = message.get("comment", "")
     gw_message["operator_name"] = message.get("operator", "")
     gw_message["oplog_id"] = GHOSTWRITER_OPLOG_ID
+    if "callback" in message and type(message["callback"]) is dict:
+        hostname = message["callback"].get("host", "")
+        source_ip = message["callback"].get("ip", "")
+        gw_message["source_ip"] = f"{hostname} ({source_ip})"
+        gw_message["user_context"] = message["callback"].get("user", "")
+        gw_message["tool"] = message["callback"].get("payload_type", "")
     
     return gw_message
 
@@ -136,7 +141,7 @@ async def main():
     await scripting()
     try:
         while True:
-            pending = asyncio.all_tasks()
+            pending = asyncio.Task.all_tasks()
             if len(pending) == 0:
                 exit(0)
             else:
