@@ -2,6 +2,8 @@ import json
 import os
 import redis
 import requests
+from mythic import mythic_rest
+import asyncio
 
 from datetime import datetime
 from mythic import *
@@ -91,16 +93,22 @@ def updateEntry(message, entry_id):
 
 
 async def handle_task(mythic, data):
-
-    entry_id = rconn.get(data.agent_task_id)
+    try:
+        entry_id = rconn.get(data.agent_task_id)
+    except Exception as e:
+        print(f"[!] Failed to connect to Redis: {str(e)}")
+        return
     if entry_id != None:
         updateEntry(data, entry_id.decode())
     else:
         createEntry(data)
     
 async def handle_response(token, data):
-
-    entry_id = rconn.get(data.task.agent_task_id)
+    try:
+        entry_id = rconn.get(data.task.agent_task_id)
+    except Exception as e:
+        print(f"[!] Failed to connect to Redis: {str(e)}")
+        return
     if not entry_id:
         print(f"[!] Received a response for a task that doesn't exist.")
         return
@@ -120,7 +128,7 @@ async def handle_response(token, data):
         print(f"[!] Error updating ghostwriter entry: {response.status_code}")
 
 async def scripting():
-    mythic = Mythic(username=MYTHIC_USERNAME, password=MYTHIC_PASSWORD,
+    mythic = mythic_rest.Mythic(username=MYTHIC_USERNAME, password=MYTHIC_PASSWORD,
                     server_ip=MYTHIC_IP, server_port="7443", ssl=True, global_timeout=-1)
 
     await mythic.login()
