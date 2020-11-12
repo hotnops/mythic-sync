@@ -90,22 +90,22 @@ def updateEntry(message, entry_id):
         print(e)
 
 
-async def handle_task(mythic, message):
+async def handle_task(mythic, data):
 
-    entry_id = rconn.get(message.agent_task_id)
+    entry_id = rconn.get(data.agent_task_id)
     if entry_id != None:
-        updateEntry(message, entry_id.decode())
+        updateEntry(data, entry_id.decode())
     else:
-        createEntry(message)
+        createEntry(data)
     
-async def handle_response(token, message):
+async def handle_response(token, data):
 
-    entry_id = rconn.get(message.task.agent_task_id)
+    entry_id = rconn.get(data.task.agent_task_id)
     if not entry_id:
         print(f"[!] Received a response for a task that doesn't exist.")
         return
 
-    gw_message = mythic_response_to_ghostwriter_message(message)
+    gw_message = mythic_response_to_ghostwriter_message(data)
 
     print(f"[*] Updating entry with response data: {entry_id.decode()}")
 
