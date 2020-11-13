@@ -5,6 +5,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY sync.py .
-COPY mythic.py .
+#COPY mythic.py .
 
 CMD python -u sync.py

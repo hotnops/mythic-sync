@@ -2,6 +2,8 @@ import json
 import os
 import redis
 import requests
+from mythic import mythic_rest
+import asyncio
 
 from datetime import datetime
 from mythic import *
@@ -22,9 +24,9 @@ headers = {'Authorization': f"Api-Key {GHOSTWRITER_API_KEY}", "Content-Type": "a
 
 
 def mythic_response_to_ghostwriter_message(message) -> dict:
-    gw_message = mythic_task_to_ghostwriter_message(message['task'])
-    if 'response' in message:
-        gw_message['output'] = message['response']
+    gw_message = mythic_task_to_ghostwriter_message(message.task)
+    if message.response is not None:
+        gw_message['output'] = message.response
         return gw_message
     else:
         print("[!] Could not locate response in message.")
@@ -32,30 +34,33 @@ def mythic_response_to_ghostwriter_message(message) -> dict:
 
 def mythic_task_to_ghostwriter_message(message) -> dict:
     gw_message = {}
-    if "status_timestamp_submitted" in message and message["status_timestamp_submitted"]:
-        start_date = datetime.strptime(message["status_timestamp_submitted"], "%m/%d/%Y %H:%M:%S")
+    if message.status_timestamp_submitted is not None:
+        start_date = datetime.strptime(message.status_timestamp_submitted, "%m/%d/%Y %H:%M:%S")
         gw_message["start_date"] = start_date.strftime("%Y-%m-%d %H:%M:%S")
-    if "status_timestamp_processed" in message and message["status_timestamp_processed"]:
-        end_date = datetime.strptime(message["status_timestamp_processed"], "%m/%d/%Y %H:%M:%S")
+    if message.status_timestamp_processed is not None:
+        end_date = datetime.strptime(message.status_timestamp_processed, "%m/%d/%Y %H:%M:%S")
         gw_message["end_date"] = end_date.strftime("%Y-%m-%d %H:%M:%S")
     # gw_message['start_date'] = message['status_timestamp_submitted']
     # gw_message['end_date'] = message['status_timestamp_processed']
-    gw_message["command"] = f"{message.get('command', '')} {message.get('params', '')}"
-    gw_message["comments"] = message.get("comment", "")
-    gw_message["operator_name"] = message.get("operator", "")
+    gw_message["command"] = f"{message.command.cmd if message.command is not None else ''} {message.original_params if message.original_params is not None else ''}"
+    #gw_message["command"] = f"{message.get('command', '')} {message.get('params', '')}"
+    gw_message["comments"] = message.comment if message.comment is not None else ''
+    #gw_message["comments"] = message.get("comment", "")
+    gw_message["operator_name"] = message.operator.username if message.operator is not None else ""
+    #gw_message["operator_name"] = message.get("operator", "")
     gw_message["oplog_id"] = GHOSTWRITER_OPLOG_ID
-    if "callback" in message and type(message["callback"]) is dict:
-        hostname = message["callback"].get("host", "")
-        source_ip = message["callback"].get("ip", "")
+    if message.callback is not None:
+        hostname = message.callback.host if message.callback.host is not None else ''
+        source_ip = message.callback.ip if message.callback.ip is not None else ''
         gw_message["source_ip"] = f"{hostname} ({source_ip})"
-        gw_message["user_context"] = message["callback"].get("user", "")
-        gw_message["tool"] = message["callback"].get("payload_type", "")
+        gw_message["user_context"] = message.callback.user if message.callback.user is not None else ''
+        gw_message["tool"] = message.callback.payload_type.ptype if message.callback.payload_type is not None else ''
     
     return gw_message
 
 
 def createEntry(message):
-    print(f"[*] Adding task: {message['agent_task_id']}")
+    print(f"[*] Adding task: {message.agent_task_id}")
     gw_message = mythic_task_to_ghostwriter_message(message)
     try:
         response = requests.post (
@@ -66,14 +71,14 @@ def createEntry(message):
             print(f"[!] Error posting to Ghostwriter: {response.status_code}")
         else:
             created_obj = json.loads(response.text)
-            rconn.set(message["agent_task_id"], created_obj["id"])
+            rconn.set(message.agent_task_id, created_obj["id"])
 
     except Exception as e:
         print(e)
 
 
 def updateEntry(message, entry_id):
-    print(f"[*] Updating task: {message['agent_task_id']} : {entry_id}")
+    print(f"[*] Updating task: {message.agent_task_id} : {entry_id}")
     gw_message = mythic_task_to_ghostwriter_message(message)
     try:
         response = requests.put (
@@ -89,31 +94,26 @@ def updateEntry(message, entry_id):
 
 async def handle_task(mythic, data):
     try:
-        message = json.loads(data)
-    except json.JSONDecodeError as e:
-        print("[!] Failed to decode task message.")
+        entry_id = rconn.get(data.agent_task_id)
+    except Exception as e:
+        print(f"[!] Failed to connect to Redis: {str(e)}")
         return
-
-    entry_id = rconn.get(message["agent_task_id"])
     if entry_id != None:
-        updateEntry(message, entry_id.decode())
+        updateEntry(data, entry_id.decode())
     else:
-        createEntry(message)
+        createEntry(data)
     
 async def handle_response(token, data):
-
     try:
-        message = json.loads(data)
-    except json.JSONDecodeError as e:
-        print("[!] Failed to decode response message.")
+        entry_id = rconn.get(data.task.agent_task_id)
+    except Exception as e:
+        print(f"[!] Failed to connect to Redis: {str(e)}")
         return
-
-    entry_id = rconn.get(message["task"]["agent_task_id"])
     if not entry_id:
         print(f"[!] Received a response for a task that doesn't exist.")
         return
 
-    gw_message = mythic_response_to_ghostwriter_message(message)
+    gw_message = mythic_response_to_ghostwriter_message(data)
 
     print(f"[*] Updating entry with response data: {entry_id.decode()}")
 
@@ -128,7 +128,7 @@ async def handle_response(token, data):
         print(f"[!] Error updating ghostwriter entry: {response.status_code}")
 
 async def scripting():
-    mythic = Mythic(username=MYTHIC_USERNAME, password=MYTHIC_PASSWORD,
+    mythic = mythic_rest.Mythic(username=MYTHIC_USERNAME, password=MYTHIC_PASSWORD,
                     server_ip=MYTHIC_IP, server_port="7443", ssl=True, global_timeout=-1)
 
     await mythic.login()
