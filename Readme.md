@@ -18,19 +18,16 @@ docker-compose up
 ```
 
 ## Without docker
-First, install python virtual environments for python3
+First, install python virtual environments for python3 and redis
 ```
-apt install python3-venv
+apt install python3-venv redis
 ```
-Create a new virtual environment for mythic-sync and install required modules
+Create a new tmux session and virtual environment for mythic-sync and install required modules
 ```
+tmux
 python3 -m venv .
 source bin/activate
 pip install -r requirements.txt
-```
-Install redis
-```
-apt get install redis
 ```
 
 Set the environment variables and then run sync.py
