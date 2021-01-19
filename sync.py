@@ -24,7 +24,7 @@ headers = {'Authorization': f"Api-Key {GHOSTWRITER_API_KEY}", "Content-Type": "a
 
 
 def mythic_response_to_ghostwriter_message(message) -> dict:
-    gw_message = mythic_task_to_ghostwriter_message(message.task)
+    gw_message = {}
     if message.response is not None:
         gw_message['output'] = message.response
         return gw_message
@@ -100,6 +100,7 @@ async def handle_task(mythic, data):
         return
     if entry_id != None:
         updateEntry(data, entry_id.decode())
+        return
     else:
         createEntry(data)
     

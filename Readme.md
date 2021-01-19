@@ -17,6 +17,29 @@ Once the environment variables are setup, you can launch the service by using do
 docker-compose up
 ```
 
+## Without docker
+First, install python virtual environments for python3
+```
+apt install python3-venv
+```
+Create a new virtual environment for mythic-sync and install required modules
+```
+python3 -m venv .
+source bin/activate
+pip install -r requirements.txt
+```
+Install redis
+```
+apt get install redis
+```
+
+Set the environment variables and then run sync.py
+```
+source ./settings.sh
+python sync.py
+```
+
+
 ## Troubleshooting
 mythic_sync uses an internal redis database to sync what events have already been sent to Ghostwriter, avoiding duplicates. If you want to re-sync, you will need to delete the volume and run it again.
 
