@@ -22,6 +22,27 @@ AUTH = {}
 rconn = redis.Redis(host=REDIS_HOSTNAME, port=6379, db=0)
 headers = {'Authorization': f"Api-Key {GHOSTWRITER_API_KEY}", "Content-Type": "application/json"}
 
+def createInitialEntry():
+    """ Create initial entry message for Ghostwriter's Oplog (POST) """
+    print("[*] Creating Initial Ghostwriter Oplog Entry")
+
+    gw_message = {}
+    gw_message["oplog_id"] = GHOSTWRITER_OPLOG_ID
+    gw_message["source_ip"] = f"Mythic TS ({MYTHIC_IP})"
+    gw_message["description"] = f"Initial entry from mythic_sync at: {MYTHIC_IP}. If you're seeing this then oplog syncing is working for this C2 server!"
+    gw_message["tool"] = "Mythic"
+
+    try:
+        # Fun fact, if you leave off the trailing "/" on oplog/api/entries/ then this POST return "200 OK" without actually doing a thing!
+        response = requests.post (
+            f"{GHOSTWRITER_URL}/oplog/api/entries/", data=json.dumps(gw_message), headers=headers, verify=False
+    )
+
+        if response.status_code != 201:
+            print(f"[!] Error posting to Ghostwriter: {response.status_code}")
+
+    except Exception as e:
+        print(e)
 
 def mythic_response_to_ghostwriter_message(message) -> dict:
     gw_message = {}
@@ -33,6 +54,7 @@ def mythic_response_to_ghostwriter_message(message) -> dict:
     return None
 
 def mythic_task_to_ghostwriter_message(message) -> dict:
+    """ Converts a Mythic task to the fields expected by Ghostwriter's Oplog API """
     gw_message = {}
     if message.status_timestamp_submitted is not None:
         start_date = datetime.strptime(message.status_timestamp_submitted, "%m/%d/%Y %H:%M:%S")
@@ -58,11 +80,12 @@ def mythic_task_to_ghostwriter_message(message) -> dict:
     
     return gw_message
 
-
 def createEntry(message):
+    """ Create entry for Ghostwriter's Oplog (POST) """
     print(f"[*] Adding task: {message.agent_task_id}")
     gw_message = mythic_task_to_ghostwriter_message(message)
     try:
+        # Fun fact, if you leave off the trailing "/" on oplog/api/entries/ then this POST return "200 OK" without actually doing a thing!
         response = requests.post (
             f"{GHOSTWRITER_URL}/oplog/api/entries/", data=json.dumps(gw_message), headers=headers, verify=False
         )
@@ -78,6 +101,7 @@ def createEntry(message):
 
 
 def updateEntry(message, entry_id):
+    """ Update an existing Ghostwriter oplog entry with more details from Mythic (PUT) """
     print(f"[*] Updating task: {message.agent_task_id} : {entry_id}")
     gw_message = mythic_task_to_ghostwriter_message(message)
     try:
@@ -152,6 +176,9 @@ async def main():
         pending = asyncio.Task.all_tasks()
         for p in pending:
             p.cancel()
+
+# Perform our initial entry to verify everything works!
+createInitialEntry()
 
 print("[*] Starting sync")
 loop = asyncio.get_event_loop()
