@@ -5,8 +5,9 @@ mythic_sync is a standalone tool that will connect to a [Mythic](https://github.
 This enables automatic logging of every operator's Mythic commands, comments, and output into Ghostwriter so operators can focus more on technical execution and less on manual and tedious logging and reporting activities.
 
 ## Usage
+### Execute w/ Docker (Option 1)
 
-After checking out the repository, open the `settings.env` file and fill out the variables with appropriate values. The following is an example:
+0. After checking out the repository, open the `settings.env` file and fill out the variables with appropriate values. The following is an example:
 
 ``` text
 MYTHIC_IP=10.10.1.100
@@ -18,8 +19,6 @@ GHOSTWRITER_OPLOG_ID=123
 REDIS_HOSTNAME=redis
 ```
 
-### Execute w/ Docker (Option 1)
-
 1. Once the environment variables are setup, you can launch the service by using docker-compose:
 
 ``` bash
@@ -27,6 +26,8 @@ docker-compose up
 ```
 
 ### Execute w/out Docker (Option 2)
+
+0. After checking out the repository, open the `settings.sh` file and fill out the variables with appropriate values.
 
 1. Install python virtual environments for python3 and redis
 
